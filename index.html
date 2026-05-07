@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compte Rendu TP5 - FreeRTOS (Systèmes Embarqués)</title>
+    <style>
+        /* ================= VARIABLES & THEME ================= */
+        :root {
+            --pixel-blue: #8AB4F8;
+            --pixel-dark-blue: #1A73E8;
+            --pixel-violet: #A142F4;
+            --pixel-dark-violet: #6A1B9A;
+            --bg-deep-space: #0B0B1A;
+            --glass-bg: rgba(25, 25, 45, 0.6);
+            --glass-border: rgba(138, 180, 248, 0.2);
+            --text-main: #E8EAED;
+            --text-muted: #9AA0A6;
+            --glow-shadow: 0 0 20px rgba(161, 66, 244, 0.4);
+            --rtos-color: #ffeb3b;
+            --error-color: #f44336;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-deep-space); color: var(--text-main); overflow-x: hidden; line-height: 1.6; }
+
+        /* ================= ASTRONOMIC BACKGROUND ================= */
+        .stars {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(106, 27, 154, 0.15), transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(26, 115, 232, 0.15), transparent 50%);
+        }
+        .star { position: absolute; background-color: white; border-radius: 50%; animation: twinkle infinite alternate; }
+        @keyframes twinkle { 0% { opacity: 0.1; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 8px white; } }
+
+        /* ================= PAGE DE GARDE ================= */
+        .cover-page {
+            min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; padding: 2rem;
+        }
+        .cover-header { text-transform: uppercase; letter-spacing: 3px; color: var(--text-muted); margin-bottom: 2rem; font-size: 1.1rem; }
+        .cover-title { font-size: 4rem; font-weight: 800; background: linear-gradient(135deg, var(--pixel-blue), var(--rtos-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 1rem; text-shadow: 0 0 40px rgba(255, 235, 59, 0.4); line-height: 1.2; }
+        .cover-subtitle { font-size: 1.8rem; color: var(--text-main); margin-bottom: 4rem; font-weight: 300; }
+        .cover-details { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); padding: 2.5rem 4rem; border-radius: 20px; box-shadow: var(--glow-shadow); }
+        .cover-details h3 { color: var(--pixel-blue); font-size: 1.4rem; margin-bottom: 0.5rem; }
+        .cover-details p { font-size: 1.2rem; margin-bottom: 1.5rem; }
+        .cover-details .binomial { font-weight: bold; font-size: 1.3rem; color: var(--text-main); }
+        .scroll-indicator { position: absolute; bottom: 40px; animation: bounce 2s infinite; color: var(--pixel-blue); font-size: 2rem; }
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-20px); } 60% { transform: translateY(-10px); } }
+
+        /* ================= LAYOUT ================= */
+        .container { max-width: 1200px; margin: 0 auto; padding: 4rem 2rem; }
+        .section-title { font-size: 2.5rem; color: var(--pixel-blue); margin-bottom: 2rem; border-bottom: 2px solid var(--rtos-color); padding-bottom: 0.5rem; display: inline-block; }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 2.5rem; margin-bottom: 3rem; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+
+        /* ================= TABS ================= */
+        .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; justify-content: center; flex-wrap: wrap; }
+        .tab-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--pixel-blue); color: var(--pixel-blue); padding: 1rem 2rem; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 1.1rem; transition: all 0.3s ease; }
+        .tab-btn:hover, .tab-btn.active { background: linear-gradient(90deg, var(--pixel-dark-blue), var(--rtos-color)); color: #fff; border-color: transparent; box-shadow: 0 0 20px rgba(255, 235, 59, 0.5); }
+        .tab-content { display: none; animation: fadeIn 0.5s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ================= CODE BLOCKS ================= */
+        pre { background: #0d0d1a; border-left: 4px solid var(--rtos-color); padding: 1.5rem; border-radius: 8px; overflow-x: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; color: #a6accd; margin-top: 1.5rem; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        code .keyword { color: #89ddff; } code .function { color: #82aaff; } code .comment { color: #546e7a; font-style: italic; } code .number { color: #f78c6c; } code .string { color: #c3e88d; }
+
+        /* ================= HARDWARE VISUALIZATION ================= */
+        .hardware-container { display: flex; align-items: center; justify-content: center; gap: 2.5rem; margin: 1rem 0 2rem 0; padding: 3rem; background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%); border-radius: 16px; position: relative; flex-wrap: wrap;}
+        
+        .led-group { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .led-viz { width: 40px; height: 40px; background: #111; border-radius: 50%; border: 2px solid #333; transition: all 0.1s ease; }
+        .led-red.on { background: #ff3b30; box-shadow: 0 0 20px #ff3b30; }
+        .led-yellow.on { background: #ffcc00; box-shadow: 0 0 20px #ffcc00; }
+        .led-green.on { background: #34c759; box-shadow: 0 0 20px #34c759; }
+
+        /* LCD Screen Styling */
+        .lcd-module { background: #222; padding: 15px; border-radius: 8px; border: 2px solid #555; display: inline-block; box-shadow: 0 10px 20px rgba(0,0,0,0.5);}
+        .lcd-screen { background: #0d47a1; color: #e3f2fd; font-family: 'Courier New', Courier, monospace; font-size: 1.4rem; padding: 10px; border-radius: 4px; border: 3px solid #111; width: 260px; height: 80px; box-shadow: inset 0 0 15px rgba(0,0,0,0.8); display: flex; flex-direction: column; justify-content: center; text-transform: uppercase; letter-spacing: 2px;}
+        .lcd-line { white-space: pre; margin: 2px 0;}
+
+        .control-panel { display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; }
+        .btn-action { background: #222; color: #fff; border: 1px solid var(--rtos-color); padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-action:hover { background: var(--rtos-color); color: #000; }
+
+        /* ================= POST-LAB ================= */
+        .qa-grid { display: flex; flex-direction: column; gap: 2rem; }
+        .qa-card { background: rgba(0, 0, 0, 0.3); border-left: 4px solid var(--rtos-color); padding: 2rem; border-radius: 8px; transition: all 0.3s ease; }
+        .qa-card:hover { background: rgba(255, 235, 59, 0.1); transform: translateX(10px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .qa-question { font-size: 1.2rem; font-weight: bold; color: var(--pixel-blue); margin-bottom: 1.5rem; display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid rgba(138, 180, 248, 0.2); padding-bottom: 10px;}
+        .qa-question::before { content: "Q:"; color: var(--rtos-color); font-size: 1.5rem; }
+        .qa-answer { color: var(--text-main); line-height: 1.8; font-size: 1.05rem; }
+        .qa-answer strong { color: #fff; }
+    </style>
+</head>
+<body>
+
+    <div class="stars" id="stars"></div>
+
+    <section class="cover-page">
+        <div class="cover-header">Université / Département d'Électronique</div>
+        <h1 class="cover-title">Multitâche & FreeRTOS</h1>
+        <h2 class="cover-subtitle">Travaux Pratiques N°5 - Systèmes Embarqués</h2>
+        
+        <div class="cover-details">
+            <h3>Binôme Réalisateur</h3>
+            <p class="binomial">Dahane Ahmed Lamine<br>& Tabbi Meriem</p>
+            <h3>Enseignante Responsable</h3>
+            <p>Mme. Afaf Saoud</p>
+            <h3 style="margin-top: 1rem; font-size: 1rem; color: var(--text-muted);">Année Universitaire 2025/2026</h3>
+        </div>
+        
+        <div class="scroll-indicator">↓</div>
+    </section>
+
+    <div class="container">
+        
+        <h2 class="section-title">1. Simulations & Architecture Logicielle</h2>
+        <section class="glass-panel">
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="openTab(event, 'part1', 1)">1. Bare Metal vs RTOS</button>
+                <button class="tab-btn" onclick="openTab(event, 'part2', 2)">2. Conflit LCD (Race Condition)</button>
+                <button class="tab-btn" onclick="openTab(event, 'part3', 3)">3. Protection par Mutex</button>
+            </div>
+
+            <div id="part1" class="tab-content active">
+                <p style="color: var(--text-muted); text-align: center; margin-bottom: 20px;">
+                    Observez la différence entre un code bloquant (Séquentiel) et un OS Temps Réel (Concurrent) pour faire clignoter 3 LEDs à des vitesses différentes[cite: 260, 261, 262, 263].
+                </p>
+
+                <div class="control-panel">
+                    <button class="btn-action" id="btn-seq" onclick="setMode('seq')">Mode Séquentiel (Boucle while bloquante)</button>
+                    <button class="btn-action" id="btn-rtos" onclick="setMode('rtos')">Mode FreeRTOS (Tâches indépendantes)</button>
+                </div>
+
+                <div class="hardware-container">
+                    <div class="led-group">
+                        <div class="led-viz led-red" id="led1"></div>
+                        <p style="font-weight: bold; font-size: 0.9rem;">LED 1 (1000ms)<br>PA5 [cite: 261]</p>
+                    </div>
+                    <div class="led-group">
+                        <div class="led-viz led-yellow" id="led2"></div>
+                        <p style="font-weight: bold; font-size: 0.9rem;">LED 2 (500ms)<br>PA6 [cite: 262]</p>
+                    </div>
+                    <div class="led-group">
+                        <div class="led-viz led-green" id="led3"></div>
+                        <p style="font-weight: bold; font-size: 0.9rem;">LED 3 (400ms)<br>PA7 [cite: 263]</p>
+                    </div>
+                </div>
+
+                <h3 style="color: var(--rtos-color); font-size: 1.2rem; margin-top: 20px;">État du Système : <span id="sys-state" style="color: white;">Séquentiel (Bare Metal)</span></h3>
+                <p id="sys-desc" style="color: #ff3b30;">Durée de la boucle : 1000ms + 500ms + 400ms = 1900ms. Les LEDs sont bloquées les unes par les autres.</p>
+
+                <pre id="code-seq"><code><span class="comment">// SÉQUENTIEL (Mauvaise pratique pour la concurrence)</span>
+<span class="keyword">while</span>(1) {
+    <span class="function">HAL_GPIO_TogglePin</span>(GPIOA, GPIO_PIN_5);
+    <span class="function">HAL_Delay</span>(<span class="number">1000</span>); <span class="comment">// Bloque tout le processeur</span>
+
+    <span class="function">HAL_GPIO_TogglePin</span>(GPIOA, GPIO_PIN_6);
+    <span class="function">HAL_Delay</span>(<span class="number">500</span>);
+
+    <span class="function">HAL_GPIO_TogglePin</span>(GPIOA, GPIO_PIN_7);
+    <span class="function">HAL_Delay</span>(<span class="number">400</span>);
+}</code></pre>
+            </div>
+
+            <div id="part2" class="tab-content">
+                <p style="color: var(--text-muted); text-align: center; margin-bottom: 20px;">
+                    Deux tâches (A et B) de même priorité tentent d'écrire sur l'écran I2C en même temps <strong>sans protection</strong>[cite: 311, 312, 313].
+                </p>
+
+                <div class="hardware-container">
+                    <div class="component">
+                        <div class="lcd-module" style="border-color: #ff3b30; box-shadow: 0 0 20px rgba(255, 59, 48, 0.4);">
+                            <div class="lcd-screen" style="background: #330000;">
+                                <div class="lcd-line" id="lcd-bad-l1"></div>
+                                <div class="lcd-line" id="lcd-bad-l2"></div>
+                            </div>
+                        </div>
+                        <p style="font-weight: bold; margin-top: 10px; color: #ff3b30;">Race Condition (Collision de données)</p>
+                    </div>
+                </div>
+
+                <pre><code><span class="comment">// TÂCHE A</span>
+<span class="keyword">void</span> <span class="function">vTaskA</span>(<span class="keyword">void</span> *pvParameters) {
+    <span class="keyword">for</span>(;;) {
+        <span class="function">lcd_print</span>(<span class="string">"SYSTEM OK "</span>); <span class="comment">// Est interrompue au milieu !</span>
+        <span class="function">vTaskDelay</span>(<span class="number">10</span>);
+    }
+}
+
+<span class="comment">// TÂCHE B</span>
+<span class="keyword">void</span> <span class="function">vTaskB</span>(<span class="keyword">void</span> *pvParameters) {
+    <span class="keyword">for</span>(;;) {
+        <span class="function">lcd_print</span>(<span class="string">"ALERTE !!"</span>); <span class="comment">// S'incruste dans le bus I2C</span>
+        <span class="function">vTaskDelay</span>(<span class="number">10</span>);
+    }
+}</code></pre>
+            </div>
+
+            <div id="part3" class="tab-content">
+                <p style="color: var(--text-muted); text-align: center; margin-bottom: 20px;">
+                    Utilisation d'un <strong>Mutex (Mutual Exclusion)</strong>. Lorsqu'une tâche possède la "clé" (Mutex), les autres tâches sont mises en pause jusqu'à ce que le bus I2C soit libéré[cite: 323, 324, 325, 326].
+                </p>
+
+                <div class="hardware-container">
+                    <div class="component">
+                        <div class="lcd-module" style="border-color: #34c759; box-shadow: 0 0 20px rgba(52, 199, 89, 0.4);">
+                            <div class="lcd-screen">
+                                <div class="lcd-line" id="lcd-good-l1"></div>
+                                <div class="lcd-line" id="lcd-good-l2"></div>
+                            </div>
+                        </div>
+                        <p style="font-weight: bold; margin-top: 10px; color: #34c759;">Accès Protégé (Synchronisation réussie)</p>
+                    </div>
+                </div>
+
+                <pre><code><span class="keyword">SemaphoreHandle_t</span> xMutexLCD;
+
+<span class="keyword">void</span> <span class="function">vTaskA</span>(<span class="keyword">void</span> *pvParameters) {
+    <span class="keyword">for</span>(;;) {
+        <span class="comment">// Demander la clé (Wait)</span>
+        <span class="keyword">if</span> (<span class="function">xSemaphoreTake</span>(xMutexLCD, portMAX_DELAY) == pdTRUE) {
+            <span class="function">lcd_print</span>(<span class="string">"SYSTEM OK "</span>);
+            <span class="function">xSemaphoreGive</span>(xMutexLCD); <span class="comment">// Rendre la clé (Signal)</span>
+        }
+        <span class="function">vTaskDelay</span>(<span class="number">1000</span>);
+    }
+}</code></pre>
+            </div>
+
+        </section>
+
+        <h2 class="section-title">2. Post-Lab : Ingénierie RTOS</h2>
+        <section class="qa-grid">
+            
+            <div class="qa-card">
+                <div class="qa-question">1. Quelle est la durée totale d'un cycle complet de la boucle while(1) en approche séquentielle (Bare Metal) ?</div>
+                <div class="qa-answer">
+                    <p>Dans l'approche séquentielle, le processeur exécute chaque instruction l'une après l'autre de manière synchrone. Si nous avons trois délais bloquants successifs : 1000 ms, 500 ms et 400 ms[cite: 261, 262, 263].</p>
+                    <p>La durée totale d'un cycle de boucle est la somme stricte de ces délais : <strong>1000 + 500 + 400 = 1900 millisecondes (1.9 secondes)</strong>[cite: 266]. À cause de cela, la LED 1 ne clignotera pas toutes les secondes, mais changera d'état seulement toutes les 1.9 secondes.</p>
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">2. Que fait le processeur pendant qu'une tâche est en vTaskDelay() ? Est-il bloqué ?</div>
+                <div class="qa-answer">
+                    <p>Contrairement à <code>HAL_Delay()</code> qui gèle le CPU dans une boucle infinie active (Busy-Wait), <code>vTaskDelay()</code> est une fonction <strong>non bloquante</strong> propre à FreeRTOS[cite: 289, 305].</p>
+                    <p>Lorsqu'une tâche appelle cette fonction, le Scheduler (l'ordonnanceur) place cette tâche dans l'état "Blocked" et <strong>donne immédiatement le contrôle du CPU à une autre tâche</strong> qui est prête à s'exécuter. Si aucune tâche n'est prête, le processeur exécute la tâche "Idle" (qui peut être configurée pour mettre le microcontrôleur en veille et économiser la batterie)[cite: 306].</p>
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">3. Si on modifie la priorité de la Task 1 à 2 (et on laisse les autres à 1), quel est l'impact si les tâches demandent le processeur en même temps ?</div>
+                <div class="qa-answer">
+                    <p>FreeRTOS utilise un ordonnancement préemptif basé sur les priorités. Le principe fondamental est : <strong>La tâche avec la plus haute priorité prête à s'exécuter obtient TOUJOURS le processeur</strong>[cite: 307].</p>
+                    <p>Si la Tâche 1 passe en Priorité 2, dès qu'elle sort de son état <code>vTaskDelay()</code>, elle <strong>préemptera</strong> (interrompra) instantanément la Tâche 2 ou la Tâche 3 (Priorité 1) en plein milieu de leur exécution. Elle s'exécutera en priorité absolue, puis rendra le CPU aux tâches inférieures lorsqu'elle se remettra en pause.</p>
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">4. Pourquoi voit-on des messages mélangés sur l'écran LCD lorsqu'on n'utilise pas de protection ?</div>
+                <div class="qa-answer">
+                    <p>Ce phénomène s'appelle une <strong>Race Condition (Condition de course)</strong> sur une ressource partagée[cite: 309, 317].</p>
+                    <p>La fonction <code>lcd_print()</code> prend du temps pour envoyer chaque lettre via le bus I2C. Sans Mutex, la Tâche A commence à envoyer "SYS...". Soudain, le tick (l'horloge interne) de FreeRTOS retentit, le Scheduler met la Tâche A en pause et donne la main à la Tâche B. La Tâche B envoie "ALERTE". Résultat sur l'écran : une chaîne corrompue ("SYSALERTE...").</p>
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">5. Dans quel cas choisirait-on une Queue (File) plutôt qu'un Mutex pour gérer l'affichage LCD ?</div>
+                <div class="qa-answer">
+                    <p>Un <strong>Mutex</strong> est utilisé uniquement pour la <strong>protection de ressource</strong> (verrouiller la porte de la pièce contenant le LCD)[cite: 319, 330].</p>
+                    <p>Une <strong>Queue (File de messages)</strong> est utilisée pour la <strong>communication entre tâches</strong>. On choisirait une Queue si l'on voulait créer une architecture avec une tâche dédiée uniquement à l'affichage (Gatekeeper Task). Les autres tâches (Capteurs, Boutons) ne toucheraient jamais au LCD, elles se contenteraient d'envoyer leurs valeurs dans la Queue. La tâche d'affichage lirait la Queue une par une et mettrait l'écran à jour proprement, éliminant de fait tout besoin de Mutex.</p>
+                </div>
+            </div>
+
+            <div class="qa-card">
+                <div class="qa-question">6. Pourquoi la tâche vTaskLog ne consomme-t-elle aucune ressource CPU tant qu'on n'appuie pas sur le bouton (Sémaphore) ? Et que se passe-t-il si on oublie de faire un xSemaphoreGive() ?</div>
+                <div class="qa-answer">
+                    <p>Lorsqu'une tâche appelle <code>xSemaphoreTake(..., portMAX_DELAY)</code>, elle passe dans l'état "Blocked"[cite: 336, 338]. Le Scheduler l'ignore complètement lors de l'attribution du temps processeur. <strong>Son utilisation CPU est de 0%</strong> jusqu'à ce que l'interruption matérielle du bouton donne le sémaphore (l'événement la réveille instantanément)[cite: 337].</p>
+                    <p>Si l'on oublie d'appeler <code>xSemaphoreGive()</code> après avoir utilisé la ressource, la ressource reste verrouillée à jamais. Toutes les autres tâches qui attendent ce sémaphore ou ce mutex resteront bloquées indéfiniment. C'est ce qu'on appelle un <strong>Deadlock (Interblocage)</strong>[cite: 339].</p>
+                </div>
+            </div>
+
+        </section>
+    </div>
+
+    <script>
+        const starContainer = document.getElementById('stars');
+        for (let i = 0; i < 200; i++) {
+            let star = document.createElement('div');
+            star.className = 'star';
+            star.style.width = Math.random() * 3 + 'px';
+            star.style.height = star.style.width;
+            star.style.left = Math.random() * 100 + 'vw';
+            star.style.top = Math.random() * 100 + 'vh';
+            star.style.animationDuration = (Math.random() * 3 + 2) + 's';
+            star.style.animationDelay = Math.random() * 5 + 's';
+            starContainer.appendChild(star);
+        }
+
+        // ================= LOGIQUE DES SIMULATEURS =================
+        let currentMode = 'seq';
+        let seqTimeout;
+        let rtosIntervals = [];
+
+        // Manip 1 Elements
+        const led1 = document.getElementById('led1');
+        const led2 = document.getElementById('led2');
+        const led3 = document.getElementById('led3');
+        const sysState = document.getElementById('sys-state');
+        const sysDesc = document.getElementById('sys-desc');
+
+        function clearLeds() {
+            led1.classList.remove('on');
+            led2.classList.remove('on');
+            led3.classList.remove('on');
+        }
+
+        function stopAll() {
+            clearTimeout(seqTimeout);
+            rtosIntervals.forEach(clearInterval);
+            rtosIntervals = [];
+            clearLeds();
+        }
+
+        // Bare Metal (Bloquant)
+        function runSequential() {
+            stopAll();
+            let step = 0;
+            function loop() {
+                if(step === 0) {
+                    led1.classList.toggle('on');
+                    seqTimeout = setTimeout(() => { step++; loop(); }, 1000);
+                } else if (step === 1) {
+                    led2.classList.toggle('on');
+                    seqTimeout = setTimeout(() => { step++; loop(); }, 500);
+                } else if (step === 2) {
+                    led3.classList.toggle('on');
+                    seqTimeout = setTimeout(() => { step = 0; loop(); }, 400);
+                }
+            }
+            loop();
+        }
+
+        // FreeRTOS (Concurrent)
+        function runRTOS() {
+            stopAll();
+            rtosIntervals.push(setInterval(() => led1.classList.toggle('on'), 1000));
+            rtosIntervals.push(setInterval(() => led2.classList.toggle('on'), 500));
+            rtosIntervals.push(setInterval(() => led3.classList.toggle('on'), 400));
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            if(mode === 'seq') {
+                document.getElementById('btn-seq').style.borderColor = '#ff3b30';
+                document.getElementById('btn-rtos').style.borderColor = '#A142F4';
+                sysState.innerText = "Séquentiel (Bare Metal)";
+                sysState.style.color = "#ff3b30";
+                sysDesc.innerText = "Durée de la boucle : 1000ms + 500ms + 400ms = 1900ms. Les tâches se bloquent mutuellement.";
+                runSequential();
+            } else {
+                document.getElementById('btn-seq').style.borderColor = '#A142F4';
+                document.getElementById('btn-rtos').style.borderColor = '#34c759';
+                sysState.innerText = "FreeRTOS (Concurrent)";
+                sysState.style.color = "#34c759";
+                sysDesc.innerText = "Chaque tâche gère sa LED indépendamment grâce au vTaskDelay() non bloquant.";
+                runRTOS();
+            }
+        }
+
+        // Manip 2 & 3: LCD
+        const lcdBadL1 = document.getElementById('lcd-bad-l1');
+        const lcdGoodL1 = document.getElementById('lcd-good-l1');
+
+        let badState = true;
+        setInterval(() => {
+            if(badState) lcdBadL1.innerText = "SYSTALERTE !! ";
+            else lcdBadL1.innerText = "ALESYSTEM OK!";
+            badState = !badState;
+        }, 500);
+
+        let goodState = true;
+        setInterval(() => {
+            if(goodState) lcdGoodL1.innerText = "SYSTEM OK   ";
+            else lcdGoodL1.innerText = "ALERTE !!   ";
+            goodState = !goodState;
+        }, 1000);
+
+        // GESTION ONGLETS
+        function openTab(evt, tabName, manipNum) {
+            if(manipNum === 1) setMode(currentMode); // Relancer l'animation
+            else stopAll(); // Arrêter les LEDs si on n'est pas sur le premier onglet
+
+            let i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+                tabcontent[i].classList.remove("active");
+            }
+            tablinks = document.getElementsByClassName("tab-btn");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            setTimeout(() => document.getElementById(tabName).classList.add("active"), 10);
+            evt.currentTarget.className += " active";
+        }
+
+        // Init
+        setMode('seq');
+    </script>
+</body>
+</html>
